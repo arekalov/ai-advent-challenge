@@ -1,0 +1,9 @@
+## This file contains configuration for the Yandex GPT API
+## Copy this file to local.properties and fill in your credentials
+
+# Yandex Cloud API Key
+YANDEX_API_KEY=your_api_key_here
+
+# Yandex Cloud Folder ID
+YANDEX_FOLDER_ID=your_folder_id_here
+
