@@ -217,15 +217,67 @@ fun MessageItem(message: Message) {
                     }
                 )
                 Spacer(modifier = Modifier.size(4.dp))
-                Text(
-                    text = formatTimestamp(message.timestamp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (message.isUser) {
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    } else {
-                        MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                
+                // Метаинформация: время, категория, токены
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatTimestamp(message.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (message.isUser) {
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        } else {
+                            MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                        }
+                    )
+                    
+                    // Категория (только для сообщений ассистента)
+                    if (!message.isUser && message.category.isNotEmpty()) {
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (message.isUser) {
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                            }
+                        )
+                        Text(
+                            text = message.category,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = if (message.isUser) {
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            }
+                        )
                     }
-                )
+                    
+                    // Токены (только для сообщений ассистента)
+                    if (!message.isUser && message.totalTokens != null) {
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (message.isUser) {
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                            }
+                        )
+                        Text(
+                            text = "${message.totalTokens} tokens",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (message.isUser) {
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -310,7 +362,8 @@ private fun MessageItemUserPreview() {
                 id = "1",
                 text = "Это тестовое сообщение пользователя",
                 isUser = true,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                category = "Еда",
             )
         )
     }
@@ -325,7 +378,9 @@ private fun MessageItemAssistantPreview() {
                 id = "2",
                 text = "Это тестовое сообщение от AI ассистента с длинным текстом для проверки отображения",
                 isUser = false,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                category = "Развлечения",
+                totalTokens = 150
             )
         )
     }

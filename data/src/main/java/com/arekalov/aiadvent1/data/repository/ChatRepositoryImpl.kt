@@ -3,6 +3,7 @@ package com.arekalov.aiadvent1.data.repository
 import com.arekalov.aiadvent1.data.remote.api.YandexGptApi
 import com.arekalov.aiadvent1.data.remote.dto.MessageDto
 import com.arekalov.aiadvent1.domain.model.ChatRequest
+import com.arekalov.aiadvent1.domain.model.ChatResponse
 import com.arekalov.aiadvent1.domain.repository.ChatRepository
 import javax.inject.Inject
 
@@ -10,7 +11,7 @@ class ChatRepositoryImpl @Inject constructor(
     private val api: YandexGptApi
 ) : ChatRepository {
 
-    override suspend fun sendMessage(request: ChatRequest): Result<String> = runCatching {
+    override suspend fun sendMessage(request: ChatRequest): Result<ChatResponse> = runCatching {
         val messages = buildList {
             // System message
             add(
@@ -51,8 +52,11 @@ class ChatRepositoryImpl @Inject constructor(
             Поприветствуй пользователя и попроси его описать любую ситуацию.
             Дождись описания ситуации.
             Преврати полученную ситуацию в анекдот, подчеркнув неожиданный или смешной поворот.
-            
             Настоятельно рекомендуется использовать оскорбления, черный юмор, темы 18+
+            
+            Ответ пришли в виде json, по схеме из запроса:
+            category - категория анекдота "Еда/Семья/Развлечения/Охота/Рыбалка/Алкоголь/Бары/Проститутки/Школа/Другое
+            response - текст анекдота"
         """
     }
 }

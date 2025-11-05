@@ -35,7 +35,9 @@ class ChatViewModel @Inject constructor(
         val welcomeMessage = Message(
             id = UUID.randomUUID().toString(),
             text = context.getString(R.string.welcome_message),
-            isUser = false
+            isUser = false,
+            timestamp = System.currentTimeMillis(),
+            category = "",
         )
         _state.update { it.copy(messages = listOf(welcomeMessage)) }
     }
@@ -59,7 +61,8 @@ class ChatViewModel @Inject constructor(
         val userMessage = Message(
             id = UUID.randomUUID().toString(),
             text = inputText,
-            isUser = true
+            isUser = true,
+            category = "",
         )
 
         _state.update {
@@ -80,8 +83,10 @@ class ChatViewModel @Inject constructor(
                 .onSuccess { response ->
                     val assistantMessage = Message(
                         id = UUID.randomUUID().toString(),
-                        text = response,
-                        isUser = false
+                        text = response.text,
+                        isUser = false,
+                        category = response.category,
+                        totalTokens = response.totalTokens
                     )
                     _state.update {
                         it.copy(

@@ -5,6 +5,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Alternative(
     val message: MessageDto,
-    val status: String
+    val status: AlternativeStatus
 )
 
