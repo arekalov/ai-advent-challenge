@@ -18,10 +18,10 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
-    
+
     // Dagger 2
     implementation(libs.dagger)
-    
+
     testImplementation(libs.junit)
 }
 

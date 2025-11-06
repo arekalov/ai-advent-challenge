@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.arekalov.aiadvent1.wear"
+    namespace = "com.arekalov.aiadventchallenge.wear"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.arekalov.aiadvent1.wear"
+        applicationId = "com.arekalov.aiadventchallenge"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

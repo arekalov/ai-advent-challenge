@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.arekalov.aiadvent1.core"
+    namespace = "com.arekalov.aiadventchallenge.core"
     compileSdk = 36
 
     defaultConfig {

@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.arekalov.aiadvent1.data"
+    namespace = "com.arekalov.aiadventchallenge.data"
     compileSdk = 36
 
     defaultConfig {
