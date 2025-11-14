@@ -74,7 +74,7 @@ class ChatRepositoryImpl @Inject constructor(
             messages = yandexMessages,
             temperature = request.temperature
         ).getOrThrow()
-    }`
+    }
     
     private fun determineNextStage(lastBotMessage: Message?, userMessage: String): String {
         // Если это автоматическое продолжение (пустое сообщение или токен)
