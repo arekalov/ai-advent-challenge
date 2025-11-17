@@ -1,6 +1,7 @@
 package com.arekalov.aiadventchallenge.data.repository
 
 import android.util.Log
+import com.arekalov.aiadventchallenge.data.local.repository.MemoryRepository
 import com.arekalov.aiadventchallenge.data.remote.api.YandexGptApi
 import com.arekalov.aiadventchallenge.data.remote.dto.MessageDto
 import com.arekalov.aiadventchallenge.domain.model.ChatRequest
@@ -10,7 +11,8 @@ import com.arekalov.aiadventchallenge.domain.repository.ChatRepository
 import javax.inject.Inject
 
 class ChatRepositoryImpl @Inject constructor(
-    private val yandexGptApi: YandexGptApi
+    private val yandexGptApi: YandexGptApi,
+    private val memoryRepository: MemoryRepository // Day 9: Добавили MemoryRepository
 ) : ChatRepository {
 
     override suspend fun sendMessage(request: ChatRequest): Result<ChatResponse> = runCatching {
@@ -124,6 +126,48 @@ class ChatRepositoryImpl @Inject constructor(
         Log.d("ChatRepository", "Tokens: $tokensBeforeCompression -> $tokensAfterCompression (saved: ${tokensBeforeCompression - tokensAfterCompression})")
         
         summaryMessage
+    }
+    
+    // Day 9: Методы для работы с памятью
+    
+    /**
+     * Сохранить сообщение в базу данных
+     */
+    override suspend fun saveMessage(conversationId: Long, message: Message) {
+        Log.d("ChatRepository", "Saving message to conversation $conversationId")
+        memoryRepository.saveMessage(conversationId, message)
+    }
+    
+    /**
+     * Получить историю разговора из базы данных
+     */
+    override suspend fun getConversationHistory(conversationId: Long): List<Message> {
+        Log.d("ChatRepository", "Loading conversation history for $conversationId")
+        return memoryRepository.getMessagesForConversation(conversationId)
+    }
+    
+    /**
+     * Создать новый разговор
+     */
+    override suspend fun createConversation(title: String): Long {
+        Log.d("ChatRepository", "Creating new conversation: $title")
+        return memoryRepository.createConversation(title)
+    }
+    
+    /**
+     * Получить или создать активный разговор
+     */
+    override suspend fun getOrCreateActiveConversation(): Long {
+        Log.d("ChatRepository", "Getting or creating active conversation")
+        return memoryRepository.getOrCreateActiveConversation()
+    }
+    
+    /**
+     * Очистить историю разговора
+     */
+    override suspend fun clearConversation(conversationId: Long) {
+        Log.d("ChatRepository", "Clearing conversation $conversationId")
+        memoryRepository.clearConversation(conversationId)
     }
     
     private fun determineNextStage(lastBotMessage: Message?, userMessage: String): String {

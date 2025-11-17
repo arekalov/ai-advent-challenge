@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 java {
@@ -18,6 +19,9 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
+    
+    // Serialization
+    implementation(libs.kotlinx.serialization.json)
 
     // Dagger 2
     implementation(libs.dagger)

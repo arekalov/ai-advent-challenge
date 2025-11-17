@@ -10,6 +10,7 @@ sealed interface ChatIntent {
     data object ToggleTokenTestMode : ChatIntent
     data class SendTokenTest(val testType: TokenTestType) : ChatIntent
     data object CompressHistory : ChatIntent // Day 8: Сжать историю вручную
+    data object ClearHistory : ChatIntent // Day 9: Очистить историю диалога
 }
 
 enum class TokenTestType {

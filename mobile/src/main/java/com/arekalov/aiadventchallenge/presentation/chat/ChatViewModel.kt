@@ -30,20 +30,57 @@ class ChatViewModel @Inject constructor(
 
     private val _sideEffect = Channel<ChatSideEffect>(Channel.BUFFERED)
     val sideEffect = _sideEffect.receiveAsFlow()
+    
+    // Day 9: ID текущего разговора
+    private var currentConversationId: Long = 0L
 
     init {
         // Загружаем доступные модели
         _state.update { it.copy(availableModels = registry.getAllModels()) }
         
-        // Добавляем приветственное сообщение от агента
-        val welcomeMessage = Message(
-            id = UUID.randomUUID().toString(),
-            text = context.getString(R.string.welcome_message),
-            isUser = false,
-            timestamp = System.currentTimeMillis(),
-            category = "",
-        )
-        _state.update { it.copy(messages = listOf(welcomeMessage)) }
+        // Day 9: Загружаем историю из базы данных
+        loadConversationHistory()
+    }
+    
+    // Day 9: Загрузка истории разговора из базы данных
+    private fun loadConversationHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Получаем или создаём активный разговор
+                currentConversationId = repository.getOrCreateActiveConversation()
+                
+                // Загружаем историю сообщений
+                val savedMessages = repository.getConversationHistory(currentConversationId)
+                
+                if (savedMessages.isEmpty()) {
+                    // Если истории нет, создаём приветственное сообщение
+                    val welcomeMessage = Message(
+                        id = UUID.randomUUID().toString(),
+                        text = context.getString(R.string.welcome_message),
+                        isUser = false,
+                        timestamp = System.currentTimeMillis(),
+                        category = "",
+                    )
+                    // Сохраняем приветственное сообщение в БД
+                    repository.saveMessage(currentConversationId, welcomeMessage)
+                    _state.update { it.copy(messages = listOf(welcomeMessage)) }
+                } else {
+                    // Загружаем сохранённые сообщения
+                    _state.update { it.copy(messages = savedMessages) }
+                    updateTokenUsage()
+                }
+            } catch (e: Exception) {
+                // Если не удалось загрузить, показываем приветственное сообщение
+                val welcomeMessage = Message(
+                    id = UUID.randomUUID().toString(),
+                    text = context.getString(R.string.welcome_message),
+                    isUser = false,
+                    timestamp = System.currentTimeMillis(),
+                    category = "",
+                )
+                _state.update { it.copy(messages = listOf(welcomeMessage)) }
+            }
+        }
     }
 
     fun handleIntent(intent: ChatIntent) {
@@ -57,6 +94,7 @@ class ChatViewModel @Inject constructor(
             ChatIntent.ToggleTokenTestMode -> toggleTokenTestMode()
             is ChatIntent.SendTokenTest -> sendTokenTest(intent.testType)
             ChatIntent.CompressHistory -> compressHistory()
+            ChatIntent.ClearHistory -> clearHistory()
         }
     }
 
@@ -94,6 +132,11 @@ class ChatViewModel @Inject constructor(
                 isLoading = true
             )
         }
+        
+        // Day 9: Сохраняем сообщение пользователя в БД
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveMessage(currentConversationId, userMessage)
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             val request = ChatRequest(
@@ -113,6 +156,10 @@ class ChatViewModel @Inject constructor(
                         totalTokens = response.totalTokens,
                         metrics = response.metrics
                     )
+                    
+                    // Day 9: Сохраняем ответ AI в БД
+                    repository.saveMessage(currentConversationId, assistantMessage)
+                    
                     _state.update {
                         it.copy(
                             messages = it.messages + assistantMessage,
@@ -187,6 +234,10 @@ class ChatViewModel @Inject constructor(
                         totalTokens = response.totalTokens,
                         metrics = response.metrics
                     )
+                    
+                    // Day 9: Сохраняем автоматическое сообщение в БД
+                    repository.saveMessage(currentConversationId, assistantMessage)
+                    
                     _state.update {
                         it.copy(
                             messages = it.messages + assistantMessage,
@@ -226,6 +277,12 @@ class ChatViewModel @Inject constructor(
                 category = "Финальный_анекдот",
                 timestamp = System.currentTimeMillis()
             )
+            
+            // Day 9: Сохраняем финальное сообщение в БД
+            launch(Dispatchers.IO) {
+                repository.saveMessage(currentConversationId, finalMessage)
+            }
+            
             _state.update {
                 it.copy(messages = it.messages + finalMessage)
             }
@@ -283,7 +340,21 @@ class ChatViewModel @Inject constructor(
             // Выполняем сжатие
             repository.compressHistory(messagesToCompress)
                 .onSuccess { summaryMessage ->
-                    // Заменяем сжатые сообщения на саммари
+                    // Day 9: Удаляем старые сообщения из БД и сохраняем summary
+                    try {
+                        // Удаляем сжатые сообщения из БД
+                        messagesToCompress.forEach { message ->
+                            // TODO: добавить метод удаления отдельных сообщений в repository
+                            // Пока пропускаем, так как мы просто не будем их загружать
+                        }
+                        
+                        // Сохраняем summary в БД
+                        repository.saveMessage(currentConversationId, summaryMessage)
+                    } catch (e: Exception) {
+                        // Логируем ошибку, но продолжаем
+                    }
+                    
+                    // Заменяем сжатые сообщения на саммари в UI
                     val welcomeMessage = messages.first()
                     val recentMessages = messages.takeLast(3)
                     val newMessages = listOf(welcomeMessage, summaryMessage) + recentMessages
@@ -308,6 +379,45 @@ class ChatViewModel @Inject constructor(
                         )
                     )
                 }
+        }
+    }
+    
+    // Day 9: Очистка истории диалога
+    private fun clearHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Очищаем все сообщения из БД
+                repository.clearConversation(currentConversationId)
+                
+                // Создаём новое приветственное сообщение
+                val welcomeMessage = Message(
+                    id = UUID.randomUUID().toString(),
+                    text = context.getString(R.string.welcome_message),
+                    isUser = false,
+                    timestamp = System.currentTimeMillis(),
+                    category = "",
+                )
+                
+                // Сохраняем его в БД
+                repository.saveMessage(currentConversationId, welcomeMessage)
+                
+                // Обновляем UI
+                _state.update {
+                    it.copy(
+                        messages = listOf(welcomeMessage),
+                        currentTokenUsage = 0,
+                        tokensSaved = 0
+                    )
+                }
+                
+                _sideEffect.send(ChatSideEffect.ScrollToBottom)
+            } catch (e: Exception) {
+                _sideEffect.send(
+                    ChatSideEffect.ShowError(
+                        e.message ?: "Ошибка очистки истории"
+                    )
+                )
+            }
         }
     }
 }

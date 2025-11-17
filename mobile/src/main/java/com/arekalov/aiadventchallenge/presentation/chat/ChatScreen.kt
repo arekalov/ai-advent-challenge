@@ -277,6 +277,39 @@ fun ChatScreen(
                         }
                     }
                     
+                    // Day 9: Clear history button
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Button(
+                            onClick = { viewModel.handleIntent(ChatIntent.ClearHistory) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            enabled = !state.isLoading && state.messages.size > 1,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "🗑️")
+                                Text(
+                                    text = "Очистить историю",
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    
                     // Token test mode toggle
                     Card(
                         modifier = Modifier

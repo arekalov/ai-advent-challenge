@@ -1,8 +1,11 @@
 package com.arekalov.aiadventchallenge.domain.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * Метрики производительности модели
  */
+@Serializable
 data class ModelMetrics(
     val responseTimeMs: Long,
     val inputTokens: Int,

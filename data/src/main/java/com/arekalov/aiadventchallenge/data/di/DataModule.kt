@@ -9,7 +9,7 @@ import dagger.Module
 import dagger.Provides
 import io.ktor.client.HttpClient
 
-@Module(includes = [NetworkModule::class, LLMProviderModule::class])
+@Module(includes = [NetworkModule::class, LLMProviderModule::class, DatabaseModule::class])
 abstract class DataModule {
 
     @Binds
