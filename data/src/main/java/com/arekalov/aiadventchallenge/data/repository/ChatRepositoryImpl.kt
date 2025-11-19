@@ -2,20 +2,29 @@ package com.arekalov.aiadventchallenge.data.repository
 
 import android.util.Log
 import com.arekalov.aiadventchallenge.data.local.repository.MemoryRepository
+import com.arekalov.aiadventchallenge.data.mcp.ToolExecutor
 import com.arekalov.aiadventchallenge.data.remote.api.YandexGptApi
+import com.arekalov.aiadventchallenge.data.remote.dto.FunctionDefinition
 import com.arekalov.aiadventchallenge.data.remote.dto.MessageDto
+import com.arekalov.aiadventchallenge.data.remote.dto.ToolDefinition
 import com.arekalov.aiadventchallenge.domain.model.ChatRequest
 import com.arekalov.aiadventchallenge.domain.model.ChatResponse
 import com.arekalov.aiadventchallenge.domain.model.Message
 import com.arekalov.aiadventchallenge.domain.repository.ChatRepository
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 
 class ChatRepositoryImpl @Inject constructor(
     private val yandexGptApi: YandexGptApi,
-    private val memoryRepository: MemoryRepository // Day 9: Добавили MemoryRepository
+    private val memoryRepository: MemoryRepository, // Day 9: Добавили MemoryRepository
+    private val toolExecutor: ToolExecutor // Day 10: Добавили ToolExecutor для MCP
 ) : ChatRepository {
 
     override suspend fun sendMessage(request: ChatRequest): Result<ChatResponse> = runCatching {
+        // Day 10: Проверяем, нужно ли использовать JokeAPI
+        val shouldUseJokeApi = shouldUseJokeApi(request.userMessage)
+        
         // Определяем текущий stage из последнего сообщения бота
         val lastBotMessage = request.conversationHistory.lastOrNull { !it.isUser }
         val currentStage = determineNextStage(lastBotMessage, request.userMessage)
@@ -71,11 +80,46 @@ class ChatRepositoryImpl @Inject constructor(
             }
         }
         
-        // Вызываем YandexGPT API (он уже возвращает готовый ChatResponse с метриками)
-        yandexGptApi.sendMessage(
+        // Day 10: Добавляем tool definitions если нужно использовать JokeAPI
+        val tools = if (shouldUseJokeApi) {
+            Log.d("ChatRepository", "User requested JokeAPI, adding tool definitions")
+            createToolDefinitions()
+        } else {
+            null
+        }
+        
+        // Вызываем YandexGPT API с инструментами (если нужно)
+        val rawResponse = yandexGptApi.sendMessageRaw(
             messages = yandexMessages,
-            temperature = request.temperature
+            temperature = request.temperature,
+            tools = tools
         ).getOrThrow()
+        
+        val startTime = System.currentTimeMillis()
+        val alternative = rawResponse.result.alternatives.firstOrNull()
+            ?: throw Exception("No response from API")
+        
+        // Day 10: Проверяем, есть ли tool calls в ответе (новый формат в message.toolCallList)
+        alternative.message.toolCallList?.toolCalls?.let { toolCallItems ->
+            Log.d("ChatRepository", "Received ${toolCallItems.size} tool calls from Yandex GPT")
+            
+            // Конвертируем новый формат в старый для ToolExecutor
+            val toolCalls = toolCallItems.map { item ->
+                com.arekalov.aiadventchallenge.data.remote.dto.ToolCall(
+                    id = "tool_call_${System.currentTimeMillis()}", // Генерируем ID
+                    type = "function", // Всегда "function" для function calls
+                    function = com.arekalov.aiadventchallenge.data.remote.dto.FunctionCall(
+                        name = item.functionCall.name,
+                        arguments = item.functionCall.arguments.toString()
+                    )
+                )
+            }
+            
+            return@runCatching handleToolCalls(toolCalls, yandexMessages, request.temperature, startTime)
+        }
+        
+        // Если tool calls нет, конвертируем ответ в ChatResponse
+        convertToChatResponse(rawResponse, startTime)
     }
     
     // Day 8: Функция сжатия истории диалога
@@ -170,6 +214,172 @@ class ChatRepositoryImpl @Inject constructor(
         memoryRepository.clearConversation(conversationId)
     }
     
+    // Day 10: Проверяем, нужно ли использовать JokeAPI
+    private fun shouldUseJokeApi(userMessage: String): Boolean {
+        val lowerMessage = userMessage.lowercase()
+        val jokeApiKeywords = listOf(
+            "jokeapi",
+            "joke api",
+            "готовый анекдот",
+            "анекдот из api",
+            "анекдот с jokeapi",
+            "анекдот из jokeapi"
+        )
+        return jokeApiKeywords.any { keyword -> lowerMessage.contains(keyword) }
+    }
+    
+    // Day 10: Создаём tool definitions для JokeAPI
+    private fun createToolDefinitions(): List<ToolDefinition> {
+        return listOf(
+            ToolDefinition(
+                type = "function",
+                function = FunctionDefinition(
+                    name = "random_joke",
+                    description = "Получить случайный анекдот из JokeAPI. Анекдот будет безопасным (safe-mode включен).",
+                    parameters = buildJsonObject {
+                        put("type", "object")
+                        put("properties", buildJsonObject { })
+                        put("required", buildJsonObject { })
+                    }
+                )
+            ),
+            ToolDefinition(
+                type = "function",
+                function = FunctionDefinition(
+                    name = "search_joke",
+                    description = "Найти анекдот по ключевому слову. Поиск осуществляется в базе JokeAPI.",
+                    parameters = buildJsonObject {
+                        put("type", "object")
+                        put("properties", buildJsonObject {
+                            put("keyword", buildJsonObject {
+                                put("type", "string")
+                                put("description", "Ключевое слово для поиска анекдота (например: programming, doctor, cat)")
+                            })
+                        })
+                        put("required", buildJsonObject {
+                            put("0", "keyword")
+                        })
+                    }
+                )
+            )
+        )
+    }
+    
+    // Day 10: Конвертируем YandexGptResponse в ChatResponse
+    private fun convertToChatResponse(
+        response: com.arekalov.aiadventchallenge.data.remote.dto.YandexGptResponse,
+        startTime: Long
+    ): ChatResponse {
+        val responseTimeMs = System.currentTimeMillis() - startTime
+        val alternative = response.result.alternatives.firstOrNull()
+            ?: throw Exception("No response from API")
+        
+        val messageText = alternative.message.text
+        val usage = response.result.usage
+        
+        val metrics = com.arekalov.aiadventchallenge.domain.model.ModelMetrics(
+            responseTimeMs = responseTimeMs,
+            inputTokens = usage.inputTextTokens.toIntOrNull() ?: 0,
+            outputTokens = usage.completionTokens.toIntOrNull() ?: 0,
+            totalTokens = usage.totalTokens.toIntOrNull() ?: 0,
+            modelName = "YandexGPT",
+            estimatedCost = 0.0
+        )
+        
+        // Парсим JSON ответ
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        return try {
+            val jsonResponse = json.decodeFromString<com.arekalov.aiadventchallenge.data.remote.dto.JsonResponse>(messageText)
+            ChatResponse(
+                text = jsonResponse.response.trim(),
+                category = jsonResponse.category,
+                stage = jsonResponse.stage,
+                totalTokens = metrics.totalTokens,
+                metrics = metrics
+            )
+        } catch (e: Exception) {
+            Log.e("ChatRepository", "Failed to parse JSON response: ${e.message}")
+            ChatResponse(
+                text = messageText,
+                category = "Другое",
+                stage = "Ошибка",
+                totalTokens = metrics.totalTokens,
+                metrics = metrics
+            )
+        }
+    }
+    
+    // Day 10: Обрабатываем tool calls и делаем повторный запрос в Yandex GPT
+    private suspend fun handleToolCalls(
+        toolCalls: List<com.arekalov.aiadventchallenge.data.remote.dto.ToolCall>,
+        originalMessages: List<MessageDto>,
+        temperature: Float,
+        originalStartTime: Long
+    ): ChatResponse {
+        Log.d(TAG, "═══════════════════════════════════════")
+        Log.d(TAG, "🔧 Handling ${toolCalls.size} tool calls")
+        
+        // Выполняем все tool calls
+        val toolResults = toolCalls.mapIndexed { index, toolCall ->
+            Log.d(TAG, "Executing tool call ${index + 1}/${toolCalls.size}: ${toolCall.function.name}")
+            val result = toolExecutor.executeToolCall(toolCall).getOrElse { error ->
+                Log.e(TAG, "Tool execution failed: ${error.message}")
+                "Error: ${error.message}"
+            }
+            ToolCallResult(toolCall.id, toolCall.function.name, result)
+        }
+        
+        Log.d(TAG, "All tool calls executed. Preparing follow-up request...")
+        
+        // Формируем сообщения для повторного запроса
+        val messagesWithToolResults = originalMessages.toMutableList().apply {
+            // Формируем текст с результатами всех tool calls
+            val toolResultsText = buildString {
+                appendLine("Результаты выполнения инструментов:")
+                toolResults.forEach { result ->
+                    appendLine("- ${result.toolName}: ${result.result}")
+                }
+                appendLine()
+                appendLine("Теперь представь полученный анекдот пользователю красиво, в формате JSON:")
+                appendLine("category='JokeAPI', stage='Готовый_анекдот'")
+            }
+            
+            Log.d(TAG, "Tool results summary length: ${toolResultsText.length} characters")
+            
+            // Добавляем одно сообщение от пользователя с результатами
+            add(MessageDto(
+                role = "user",
+                text = toolResultsText
+            ))
+        }
+        
+        Log.d(TAG, "Sending follow-up request to Yandex GPT (${messagesWithToolResults.size} messages)")
+        
+        // Отправляем повторный запрос БЕЗ tools (чтобы получить финальный ответ)
+        val followUpStartTime = System.currentTimeMillis()
+        val rawResponse = yandexGptApi.sendMessageRaw(
+            messages = messagesWithToolResults,
+            temperature = temperature,
+            tools = null
+        ).getOrThrow()
+        
+        val result = convertToChatResponse(rawResponse, followUpStartTime)
+        Log.d(TAG, "Follow-up response received: category=${result.category}, stage=${result.stage}")
+        Log.d(TAG, "Response text length: ${result.text.length} characters")
+        Log.d(TAG, "═══════════════════════════════════════")
+        
+        return result
+    }
+    
+    companion object {
+        private const val TAG = "ChatRepository"
+    
+    private data class ToolCallResult(
+        val toolCallId: String,
+        val toolName: String,
+        val result: String
+    )
+    
     private fun determineNextStage(lastBotMessage: Message?, userMessage: String): String {
         // Если это автоматическое продолжение (пустое сообщение или токен)
         if (userMessage.trim().isEmpty() || userMessage == "CONTINUE") {
@@ -252,7 +462,25 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     companion object {
+        private const val JOKEAPI_INSTRUCTIONS = """
+            ⚠️ СПЕЦИАЛЬНЫЙ РЕЖИМ - JokeAPI:
+            
+            Если пользователь ЯВНО упоминает что хочет анекдот из JokeAPI (ключевые слова: "jokeapi", "joke api", "готовый анекдот", "анекдот из api", "анекдот с jokeapi"):
+            - НЕ собирай ситуацию/героя/юмор через диалог
+            - НЕ генерируй анекдот самостоятельно
+            - Используй доступные инструменты:
+              * random_joke - для случайного анекдота
+              * search_joke - если указано ключевое слово (например "анекдот про программистов")
+            - После получения анекдота верни его пользователю в формате:
+              category="JokeAPI", stage="Готовый_анекдот"
+            
+            В ОСТАЛЬНЫХ случаях - работай по стандартному алгоритму сбора информации и генерации 4 способов.
+            
+        """
+        
         private const val SYSTEM_PROMPT_COLLECTOR = """
+            $JOKEAPI_INSTRUCTIONS
+            
             Ты — агент-сборщик информации для создания анекдотов. Твоя задача — собрать 3 параметра: ситуацию, героя и тип юмора.
             
             АЛГОРИТМ РАБОТЫ:
@@ -316,6 +544,8 @@ class ChatRepositoryImpl @Inject constructor(
         """
         
         private const val SYSTEM_PROMPT_DIRECT = """
+            $JOKEAPI_INSTRUCTIONS
+            
             Ты — AI-анекдотчик, специализирующийся на ПРЯМОЙ генерации анекдотов.
             
             ЗАДАЧА: Сгенерируй анекдот НАПРЯМУЮ, без рассуждений и объяснений.
@@ -345,6 +575,8 @@ class ChatRepositoryImpl @Inject constructor(
         """
         
         private const val SYSTEM_PROMPT_STEPBYSTEP = """
+            $JOKEAPI_INSTRUCTIONS
+            
             Ты — AI-анекдотчик, специализирующийся на ПОШАГОВОМ создании анекдотов.
             
             ЗАДАЧА: Создай анекдот с ДЕТАЛЬНЫМ показом каждого шага рассуждения.
@@ -385,6 +617,8 @@ class ChatRepositoryImpl @Inject constructor(
         """
         
         private const val SYSTEM_PROMPT_META = """
+            $JOKEAPI_INSTRUCTIONS
+            
             Ты — AI-анекдотчик, специализирующийся на МЕТА-ПРОМПТИНГЕ.
             
             ЗАДАЧА: СНАЧАЛА создай оптимальный промпт для генерации анекдота, ЗАТЕМ используй его.
@@ -419,6 +653,8 @@ class ChatRepositoryImpl @Inject constructor(
         """
         
         private const val SYSTEM_PROMPT_EXPERTS = """
+            $JOKEAPI_INSTRUCTIONS
+            
             Ты — AI-модератор группы экспертов-юмористов.
             
             ЗАДАЧА: Создай симуляцию обсуждения анекдота группой из 3 экспертов.

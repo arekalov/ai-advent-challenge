@@ -24,7 +24,10 @@ enum class AlternativeStatus {
     FINAL_CHOICE,
     
     @SerialName("ALTERNATIVE_STATUS_TRUNCATED_FINAL_CHOICE")
-    TRUNCATED_FINAL_CHOICE;
+    TRUNCATED_FINAL_CHOICE,
+    
+    @SerialName("ALTERNATIVE_STATUS_TOOL_CALLS")
+    TOOL_CALLS;
     
     fun isSuccess(): Boolean {
         return this == FINAL_CHOICE || this == TRUNCATED_FINAL_CHOICE || this == FINAL
@@ -32,6 +35,10 @@ enum class AlternativeStatus {
     
     fun isContentFiltered(): Boolean {
         return this == CONTENT_FILTER
+    }
+    
+    fun isToolCalls(): Boolean {
+        return this == TOOL_CALLS
     }
 }
 

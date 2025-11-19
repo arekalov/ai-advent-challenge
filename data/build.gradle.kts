@@ -28,6 +28,7 @@ android {
         buildConfigField("String", "YANDEX_API_KEY", "\"${properties.getProperty("YANDEX_API_KEY", "YOUR_API_KEY_HERE")}\"")
         buildConfigField("String", "YANDEX_FOLDER_ID", "\"${properties.getProperty("YANDEX_FOLDER_ID", "b1g5qobv3963u8k4mdbc")}\"")
         buildConfigField("String", "HUGGING_FACE_TOKEN", "\"${properties.getProperty("HUGGING_FACE_TOKEN", "")}\"")
+        buildConfigField("String", "MCP_SERVER_URL", "\"${properties.getProperty("MCP_SERVER_URL", "http://10.0.2.2:8080")}\"")
     }
 
     buildTypes {

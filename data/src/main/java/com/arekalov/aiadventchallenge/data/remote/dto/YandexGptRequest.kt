@@ -10,6 +10,7 @@ data class YandexGptRequest(
     val jsonObject: Boolean = true,
     val jsonSchema: JsonSchema? = null,
     val parallelToolCalls: Boolean = false,
-    val toolChoice: ToolChoice = ToolChoice(mode = "NONE")
+    val toolChoice: ToolChoice? = null,
+    val tools: List<ToolDefinition>? = null
 )
 

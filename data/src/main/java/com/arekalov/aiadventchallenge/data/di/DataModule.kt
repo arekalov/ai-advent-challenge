@@ -1,6 +1,7 @@
 package com.arekalov.aiadventchallenge.data.di
 
 import com.arekalov.aiadventchallenge.core.di.AppScope
+import com.arekalov.aiadventchallenge.data.mcp.ToolExecutor
 import com.arekalov.aiadventchallenge.data.remote.api.YandexGptApi
 import com.arekalov.aiadventchallenge.data.repository.ChatRepositoryImpl
 import com.arekalov.aiadventchallenge.domain.repository.ChatRepository
@@ -29,6 +30,15 @@ abstract class DataModule {
 
         @Provides
         @AppScope
+        fun provideToolExecutor(
+            httpClient: HttpClient,
+            @McpServerUrl mcpServerUrl: String
+        ): ToolExecutor {
+            return ToolExecutor(httpClient, mcpServerUrl)
+        }
+
+        @Provides
+        @AppScope
         @ApiKey
         fun provideApiKey(): String {
             return com.arekalov.aiadventchallenge.data.BuildConfig.YANDEX_API_KEY
@@ -39,6 +49,13 @@ abstract class DataModule {
         @FolderId
         fun provideFolderId(): String {
             return com.arekalov.aiadventchallenge.data.BuildConfig.YANDEX_FOLDER_ID
+        }
+
+        @Provides
+        @AppScope
+        @McpServerUrl
+        fun provideMcpServerUrl(): String {
+            return com.arekalov.aiadventchallenge.data.BuildConfig.MCP_SERVER_URL
         }
     }
 }

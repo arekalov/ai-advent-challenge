@@ -36,6 +36,70 @@ class YandexGptApi @Inject constructor(
     suspend fun sendMessage(
         messages: List<MessageDto>,
         temperature: Float = 0.7f
+    ): Result<ChatResponse> = sendMessageWithTools(messages, temperature, null)
+    
+    // Day 10: Метод для получения сырого ответа (для обработки tool calls)
+    suspend fun sendMessageRaw(
+        messages: List<MessageDto>,
+        temperature: Float = 0.7f,
+        tools: List<com.arekalov.aiadventchallenge.data.remote.dto.ToolDefinition>? = null
+    ): Result<YandexGptResponse> = runCatching {
+        val request = YandexGptRequest(
+            modelUri = "gpt://$folderId/yandexgpt",
+            completionOptions = CompletionOptions(
+                stream = false,
+                temperature = temperature.toDouble(),
+                maxTokens = 50000
+            ),
+            messages = messages,
+            jsonObject = tools == null,
+            jsonSchema = if (tools == null) {
+                JsonSchema(
+                    schema = Schema(
+                        type = "object",
+                        properties = mapOf(
+                            "response" to Property(type = "string"),
+                            "category" to Property(type = "string"),
+                            "stage" to Property(type = "string"),
+                            "situation" to Property(type = "string"),
+                            "heroes" to Property(type = "string"),
+                            "humor_type" to Property(type = "string")
+                        ),
+                        required = listOf("response", "category", "stage", "situation", "heroes", "humor_type")
+                    )
+                )
+            } else null,
+            toolChoice = if (tools != null) {
+                com.arekalov.aiadventchallenge.data.remote.dto.ToolChoice(mode = "AUTO")
+            } else null,
+            tools = tools
+        )
+
+        // Логируем запрос для отладки
+        if (tools != null) {
+            Log.d("YandexGptApi", "Sending request with ${tools.size} tools:")
+            tools.forEach { tool ->
+                Log.d("YandexGptApi", "  - ${tool.function.name}: ${tool.function.description}")
+            }
+        }
+
+        val httpResponse = httpClient.post(BASE_URL) {
+            contentType(ContentType.Application.Json)
+            bearerAuth(apiKey)
+            setBody(request)
+        }
+
+        val rawResponse = httpResponse.bodyAsText()
+        Log.d("YandexGptApi", "Raw API response:\n$rawResponse")
+        
+        json.decodeFromString(rawResponse)
+    }
+    
+    // Day 10: Новый метод с поддержкой Function Calling
+    suspend fun sendMessageWithTools(
+        messages: List<MessageDto>,
+        temperature: Float = 0.7f,
+        tools: List<com.arekalov.aiadventchallenge.data.remote.dto.ToolDefinition>? = null
     ): Result<ChatResponse> = runCatching {
         val startTime = System.currentTimeMillis()
         
@@ -44,25 +108,39 @@ class YandexGptApi @Inject constructor(
             completionOptions = CompletionOptions(
                 stream = false,
                 temperature = temperature.toDouble(),
-                maxTokens = 8000
+                maxTokens = 50000
             ),
             messages = messages,
-            jsonObject = true,
-            jsonSchema = JsonSchema(
-                schema = Schema(
-                    type = "object",
-                    properties = mapOf(
-                        "response" to Property(type = "string"),
-                        "category" to Property(type = "string"),
-                        "stage" to Property(type = "string"),
-                        "situation" to Property(type = "string"),
-                        "heroes" to Property(type = "string"),
-                        "humor_type" to Property(type = "string")
-                    ),
-                    required = listOf("response", "category", "stage", "situation", "heroes", "humor_type")
+            jsonObject = tools == null, // JSON mode только если нет tools
+            jsonSchema = if (tools == null) {
+                JsonSchema(
+                    schema = Schema(
+                        type = "object",
+                        properties = mapOf(
+                            "response" to Property(type = "string"),
+                            "category" to Property(type = "string"),
+                            "stage" to Property(type = "string"),
+                            "situation" to Property(type = "string"),
+                            "heroes" to Property(type = "string"),
+                            "humor_type" to Property(type = "string")
+                        ),
+                        required = listOf("response", "category", "stage", "situation", "heroes", "humor_type")
+                    )
                 )
-            )
+            } else null,
+            toolChoice = if (tools != null) {
+                com.arekalov.aiadventchallenge.data.remote.dto.ToolChoice(mode = "AUTO")
+            } else null,
+            tools = tools
         )
+
+        // Логируем запрос для отладки
+        if (tools != null) {
+            Log.d("YandexGptApi", "Sending request with ${tools.size} tools:")
+            tools.forEach { tool ->
+                Log.d("YandexGptApi", "  - ${tool.function.name}: ${tool.function.description}")
+            }
+        }
 
         val httpResponse = httpClient.post(BASE_URL) {
             contentType(ContentType.Application.Json)

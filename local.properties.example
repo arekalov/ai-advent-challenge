@@ -10,3 +10,7 @@ YANDEX_FOLDER_ID=your_folder_id_here
 # HuggingFace API Token (for Day 6 - Model Comparison)
 HUGGING_FACE_TOKEN=your_huggingface_token_here
 
+# MCP Server URL (for Day 10 - JokeAPI Integration)
+# For Android Emulator use 10.0.2.2, for physical device use your machine's IP
+MCP_SERVER_URL=http://10.0.2.2:8080
+

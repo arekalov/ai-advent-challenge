@@ -10,3 +10,7 @@ annotation class ApiKey
 @Retention(AnnotationRetention.RUNTIME)
 annotation class FolderId
 
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class McpServerUrl
+
